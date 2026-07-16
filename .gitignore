@@ -1,0 +1,23 @@
+# 실제 API 키가 들어 있는 파일은 공유하거나 GitHub에 올리지 않습니다.
+.env
+
+# 이 프로젝트 전용 가상환경은 각 컴퓨터에서 따로 만듭니다.
+.poster_venv/
+
+# 강의에서 사용하던 일반 가상환경도 저장소에서 제외합니다.
+.venv/
+venv/
+
+# Python이 자동으로 만드는 캐시 파일입니다.
+__pycache__/
+*.pyc
+
+# 사용자가 올린 제품 사진과 AI 생성 결과는 기본적으로 제외합니다.
+uploads/*
+outputs/*
+metadata/*
+
+# 빈 폴더 구조를 유지하는 파일은 예외 처리합니다.
+!uploads/.gitkeep
+!outputs/.gitkeep
+!metadata/.gitkeep
