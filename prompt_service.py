@@ -164,7 +164,7 @@ def build_image_prompt(brief: ProductBrief, ad_copy: AdCopy) -> str:
 
     # 포스터에 반영할 정확한 문구를 정리합니다.
     exact_text = _build_exact_text_block(brief, ad_copy)
-    
+
     # 단순 링크 전달을 넘어, 저작권 보호와 창의성 지침을 결합합니다.
     reference_guide = ""
     if brief.reference_image_link:
@@ -176,8 +176,8 @@ def build_image_prompt(brief: ProductBrief, ad_copy: AdCopy) -> str:
             f"- 기존 예술 사조를 현대적으로 재해석하며, 역동적인 빛과 색상의 조화를 지침으로 삼으세요.\n"
         )
 
-    # 이미지 AI에 전달할 최종 지시문을 반환합니다.
-    return f"""
+    # 이미지 AI에 전달할 최종 지시문을 만듭니다.
+    generated_prompt = f"""
 업로드된 제품 사진을 핵심 참고 이미지로 사용하여 한국어 제품광고 포스터 한 장을 제작하세요.
 {reference_guide}
 [원본 제품 보존]
@@ -222,3 +222,9 @@ def build_image_prompt(brief: ProductBrief, ad_copy: AdCopy) -> str:
 [추가 요청]
 {brief.extra_request if brief.extra_request else "추가 요청 없음"}
 """.strip()
+
+    # 이후 JSON 직렬화 시 실제 이미지 생성 프롬프트도 함께 내보냅니다.
+    ad_copy.generated_prompt = generated_prompt
+
+    # 이미지 생성 API에 전달할 최종 프롬프트를 반환합니다.
+    return generated_prompt
