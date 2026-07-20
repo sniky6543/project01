@@ -51,8 +51,8 @@ class ProductBrief(BaseModel):
 
     # 사용자가 추가로 입력한 디자인 요청입니다.
     extra_request: str = Field(default="", max_length=1200)
-    
-    # 👇 [여기에 추가!] 참조할 이미지 링크 필드 추가 (필수가 아니므로 default="" 설정)
+
+    # 참조할 이미지 링크입니다. 필수 입력이 아니므로 빈 문자열을 허용합니다.
     reference_image_link: str = Field(default="", max_length=500)
 
 
@@ -82,3 +82,6 @@ class AdCopy(BaseModel):
 
     # 결과 화면에 표시할 한글 해시태그입니다.
     hashtags: list[str] = Field(min_length=3, max_length=5)
+
+    # 이미지 생성 API에 실제 전달된 최종 프롬프트를 저장합니다.
+    generated_prompt: str = Field(default="")
