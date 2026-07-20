@@ -409,7 +409,7 @@ st.markdown(
 
         .product-label-stack {
             display: grid;
-            grid-template-rows: repeat(6, var(--control-height)) 108px;
+            grid-template-rows: repeat(7, var(--control-height)) 108px;
             row-gap: 10px;
         }
 
@@ -601,6 +601,29 @@ st.markdown(
             height: var(--control-height) !important;
             min-height: var(--control-height) !important;
             transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+        }
+
+        /* BaseWeb 셀렉트 메뉴는 본문 바깥 포털에 열리므로 옵션 목록도 별도로 흰색 처리합니다. */
+        div[data-baseweb="popover"],
+        div[data-baseweb="menu"],
+        ul[role="listbox"],
+        div[role="listbox"] {
+            background: #ffffff !important;
+            border-color: var(--line-strong) !important;
+        }
+
+        li[role="option"],
+        div[role="option"] {
+            background: #ffffff !important;
+            color: var(--ink) !important;
+        }
+
+        li[role="option"]:hover,
+        div[role="option"]:hover,
+        li[role="option"][aria-selected="true"],
+        div[role="option"][aria-selected="true"] {
+            background: var(--accent-soft) !important;
+            color: var(--accent) !important;
         }
 
         input,
@@ -867,6 +890,86 @@ st.markdown(
             color: var(--subtle);
             font-size: var(--font-xs);
             margin: 0;
+        }
+
+
+        .result-loading {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 480px;
+            padding: var(--space-4) 0 var(--space-3);
+        }
+
+        .loading-poster {
+            align-items: center;
+            aspect-ratio: 4 / 5;
+            background: linear-gradient(145deg, #f8faff 0%, #edf2ff 100%);
+            border: 1px solid #cbd8f4;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 28px rgba(49, 87, 231, 0.10);
+            display: flex;
+            justify-content: center;
+            max-width: 250px;
+            overflow: hidden;
+            position: relative;
+            width: min(52%, 250px);
+        }
+
+        .loading-poster::before {
+            background: linear-gradient(
+                100deg,
+                transparent 20%,
+                rgba(255, 255, 255, 0.82) 50%,
+                transparent 80%
+            );
+            content: "";
+            inset: 0;
+            position: absolute;
+            transform: translateX(-120%);
+            animation: poster-shimmer 1.5s infinite;
+        }
+
+        .loading-image-symbol {
+            align-items: center;
+            background: #ffffff;
+            border: 1px solid #d5defb;
+            border-radius: 50%;
+            color: var(--accent);
+            display: flex;
+            font-size: 1.4rem;
+            font-weight: 700;
+            height: 62px;
+            justify-content: center;
+            width: 62px;
+        }
+
+        .loading-status {
+            align-items: center;
+            color: var(--muted);
+            display: flex;
+            font-size: var(--font-xs);
+            font-weight: 600;
+            gap: 8px;
+            margin-top: var(--space-4);
+        }
+
+        .loading-spinner {
+            animation: loading-spin 0.9s linear infinite;
+            border: 2px solid #d5defb;
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            height: 16px;
+            width: 16px;
+        }
+
+        @keyframes poster-shimmer {
+            to { transform: translateX(120%); }
+        }
+
+        @keyframes loading-spin {
+            to { transform: rotate(360deg); }
         }
 
         @media (min-width: 1101px) {
@@ -1255,6 +1358,7 @@ def create_brief(
     features: str,
     category: str,
     target_customer: str,
+    reference_image_link: str,
     usage: str,
     style: str,
     color_tone: str,
@@ -1274,6 +1378,7 @@ def create_brief(
         features=features,
         category=category,
         target_customer=target_customer,
+        reference_image_link=reference_image_link,
         usage=usage,
         style=style,
         color_tone=color_tone,
@@ -1281,6 +1386,26 @@ def create_brief(
         text_amount=text_amount,
         output_type=output_type,
         extra_request=extra_request,
+    )
+
+
+def render_loading_state(placeholder, message: str) -> None:
+    """생성 결과 이미지 영역 안에 간결한 로딩 화면을 표시합니다."""
+
+    safe_message = html.escape(message)
+    placeholder.markdown(
+        f"""
+        <div class="result-loading" role="status" aria-live="polite">
+            <div class="loading-poster" aria-hidden="true">
+                <div class="loading-image-symbol">✦</div>
+            </div>
+            <div class="loading-status">
+                <span class="loading-spinner" aria-hidden="true"></span>
+                <span>{safe_message}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 
@@ -1292,11 +1417,12 @@ def perform_generation(
     image_model: str,
     quality: str,
     reuse_copy_when_possible: bool,
+    loading_placeholder,
 ) -> None:
     """문구 생성, 이미지 생성, 후처리와 저장을 차례대로 실행합니다."""
 
-    # 화면에 전체 진행률 막대를 표시합니다.
-    progress = st.progress(0, text="제품 사진을 준비하고 있습니다...")
+    # 로딩 화면은 04 생성 결과의 이미지 위치에만 표시합니다.
+    render_loading_state(loading_placeholder, "제품 사진을 준비하고 있습니다...")
 
     try:
         # 업로드한 각 파일의 원본 바이트를 읽습니다.
@@ -1311,8 +1437,8 @@ def perform_generation(
             for image_bytes in original_image_bytes
         ]
 
-        # 제품 사진 준비가 끝났음을 진행률에 표시합니다.
-        progress.progress(15, text="제품 사진 준비 완료")
+        # 결과 이미지 자리에서 다음 단계로 갱신합니다.
+        render_loading_state(loading_placeholder, "제품 사진 준비가 완료되었습니다...")
 
         # 현재 제품 내용의 비교용 서명을 만듭니다.
         current_signature = make_copy_signature(brief)
@@ -1331,10 +1457,10 @@ def perform_generation(
         # 재사용 조건이 맞으면 이전 광고 문구를 다시 사용합니다.
         if can_reuse_copy:
             ad_copy = AdCopy.model_validate(previous_result["ad_copy"])
-            progress.progress(35, text="기존 광고 문구를 유지합니다...")
+            render_loading_state(loading_placeholder, "기존 광고 문구를 적용하고 있습니다...")
         else:
             # 처음 생성하거나 제품 내용이 바뀌면 광고 문구를 새로 만듭니다.
-            progress.progress(25, text="광고 문구를 생성하고 있습니다...")
+            render_loading_state(loading_placeholder, "광고 문구를 생성하고 있습니다...")
 
             # 텍스트 AI를 호출해 구조화된 광고 문구를 받습니다.
             ad_copy = generate_ad_copy(
@@ -1343,8 +1469,8 @@ def perform_generation(
                 model=text_model,
             )
 
-            # 광고 문구 생성이 끝났음을 표시합니다.
-            progress.progress(40, text="광고 문구 생성 완료")
+            # 광고 문구 생성이 끝났음을 결과 이미지 자리에서 표시합니다.
+            render_loading_state(loading_placeholder, "포스터 구성을 준비하고 있습니다...")
 
         # 제품 정보와 문구로 이미지 AI 프롬프트를 만듭니다.
         image_prompt = build_image_prompt(
@@ -1355,10 +1481,10 @@ def perform_generation(
         # 선택한 최종 출력 규격의 AI 생성 크기를 가져옵니다.
         output_spec = get_output_spec(brief.output_type)
 
-        # 이미지 생성 단계임을 표시합니다.
-        progress.progress(
-            50,
-            text="AI가 제품광고 포스터 한 장을 생성하고 있습니다...",
+        # 이미지 생성 단계임을 결과 이미지 자리에서 표시합니다.
+        render_loading_state(
+            loading_placeholder,
+            "AI가 제품광고 포스터를 생성하고 있습니다...",
         )
 
         # 제품 사진을 참고해 광고 포스터를 생성합니다.
@@ -1371,8 +1497,11 @@ def perform_generation(
             quality=quality,
         )
 
-        # 이미지 생성이 끝났음을 표시합니다.
-        progress.progress(78, text="포스터 생성 완료, 인쇄 파일을 변환하고 있습니다...")
+        # 이미지 생성이 끝났음을 결과 이미지 자리에서 표시합니다.
+        render_loading_state(
+            loading_placeholder,
+            "포스터 파일을 변환하고 있습니다...",
+        )
 
         # AI 이미지를 정확한 A4, A5 또는 SNS 규격으로 변환합니다.
         export_files = build_export_files(
@@ -1431,60 +1560,25 @@ def perform_generation(
             "copy_signature": current_signature,
         }
 
-        # 모든 작업이 완료되었음을 표시합니다.
-        progress.progress(100, text="PNG, JPG와 PDF 저장 완료")
-
-    finally:
-        # 진행률이 끝난 뒤 화면을 깔끔하게 정리합니다.
-        progress.empty()
+    except Exception:
+        # 오류가 발생하면 결과 영역의 로딩 화면을 제거한 뒤 상위 오류 처리로 넘깁니다.
+        loading_placeholder.empty()
+        raise
 
 
 def show_result(result: dict) -> tuple[bool, bool]:
-    """결과 미리보기와 다운로드 버튼을 표시합니다."""
+    """생성된 이미지와 필요한 동작 버튼만 표시합니다."""
 
-    # 포스터와 광고 문구를 좌우로 배치합니다.
-    image_column, detail_column = st.columns([2.7, 1], gap="medium")
+    # 설명 카드 없이 결과 이미지와 작업 버튼만 좌우로 배치합니다.
+    image_column, action_column = st.columns([3.1, 1], gap="medium")
 
-    # 왼쪽에는 생성된 포스터 한 장만 표시합니다.
     with image_column:
         st.image(
             result["poster_png"],
-            caption="생성된 제품광고 포스터",
             use_container_width=True,
         )
 
-    # 오른쪽에는 광고 문구와 다운로드 버튼을 표시합니다.
-    with detail_column:
-        # 결과 정보를 테두리가 있는 카드 안에 표시합니다.
-        with st.container(border=True):
-            # 저장된 광고 문구를 가져옵니다.
-            copy_data = result["ad_copy"]
-
-            # 광고 문구를 순서대로 보여줍니다.
-            st.subheader(copy_data["title"])
-            st.write(copy_data["subtitle"])
-            st.write(copy_data["description"])
-            st.caption(copy_data["cta"])
-
-            # 가격이 입력된 경우에만 표시합니다.
-            if copy_data["price_text"]:
-                st.write(f"가격: {copy_data['price_text']}")
-
-            # 수량이 입력된 경우에만 표시합니다.
-            if copy_data["quantity_text"]:
-                st.write(f"수량·구성: {copy_data['quantity_text']}")
-
-            # 출력 규격, 픽셀과 dpi를 표시합니다.
-            width, height = result["final_pixels"]
-            st.write(
-                f"출력: {result['output_type']} · "
-                f"{width}×{height}px · {result['dpi']}dpi"
-            )
-
-            # 해시태그를 한 줄로 보여줍니다.
-            st.caption(" ".join(copy_data["hashtags"]))
-
-        # 제품명을 안전한 다운로드 파일명으로 바꿉니다.
+    with action_column:
         safe_name = (
             result["product_name"]
             .replace("/", "_")
@@ -1492,30 +1586,20 @@ def show_result(result: dict) -> tuple[bool, bool]:
             .replace(" ", "_")
         )
 
-        # PNG와 JPG 다운로드 버튼을 나란히 배치합니다.
-        first_download, second_download = st.columns(2)
-
-        # PNG 다운로드 버튼을 만듭니다.
-        with first_download:
-            st.download_button(
-                label="PNG 다운로드",
-                data=result["poster_png"],
-                file_name=f"{safe_name}_poster.png",
-                mime="image/png",
-                use_container_width=True,
-            )
-
-        # JPG 다운로드 버튼을 만듭니다.
-        with second_download:
-            st.download_button(
-                label="JPG 다운로드",
-                data=result["poster_jpg"],
-                file_name=f"{safe_name}_poster.jpg",
-                mime="image/jpeg",
-                use_container_width=True,
-            )
-
-        # 인쇄용 PDF 다운로드 버튼을 만듭니다.
+        st.download_button(
+            label="PNG 다운로드",
+            data=result["poster_png"],
+            file_name=f"{safe_name}_poster.png",
+            mime="image/png",
+            use_container_width=True,
+        )
+        st.download_button(
+            label="JPG 다운로드",
+            data=result["poster_jpg"],
+            file_name=f"{safe_name}_poster.jpg",
+            mime="image/jpeg",
+            use_container_width=True,
+        )
         st.download_button(
             label="인쇄용 PDF 다운로드",
             data=result["poster_pdf"],
@@ -1524,29 +1608,23 @@ def show_result(result: dict) -> tuple[bool, bool]:
             use_container_width=True,
         )
 
-        # 작업 정보를 한글 JSON 문자열로 만듭니다.
         metadata_json = json.dumps(
             result["metadata"],
             ensure_ascii=False,
             indent=2,
         )
-
-        # 작업 정보 JSON 다운로드 버튼을 만듭니다.
         st.download_button(
-            label="광고 문구와 설정 JSON 다운로드",
+            label="작업 정보 JSON 다운로드",
             data=metadata_json.encode("utf-8"),
             file_name=f"{safe_name}_poster_info.json",
             mime="application/json",
             use_container_width=True,
         )
 
-        # 다시 만들 때 문구도 새로 생성할지 선택합니다.
         new_copy_on_remake = st.checkbox(
-            "다시 만들 때 광고 문구도 새로 생성",
+            "다시 만들 때 문구도 새로 생성",
             value=False,
         )
-
-        # 현재 위쪽의 스타일과 옵션으로 다시 만드는 버튼입니다.
         remake_clicked = st.button(
             "현재 설정으로 다시 만들기",
             type="primary",
@@ -1554,19 +1632,14 @@ def show_result(result: dict) -> tuple[bool, bool]:
             key="remake_button",
         )
 
-        # 현재 결과를 화면에서 지우는 버튼입니다.
         if st.button(
             "현재 결과 지우기",
             use_container_width=True,
             key="clear_result_button",
         ):
-            # 마지막 결과를 세션에서 삭제합니다.
             st.session_state.pop("last_result", None)
-
-            # 화면을 새로 실행합니다.
             st.rerun()
 
-    # 다시 만들기 클릭 여부와 문구 새 생성 여부를 반환합니다.
     return remake_clicked, new_copy_on_remake
 
 
@@ -1689,6 +1762,7 @@ with product_panel:
                 <div class="field-label">수량·구성</div>
                 <div class="field-label">제품 카테고리</div>
                 <div class="field-label">주요 고객</div>
+                <div class="field-label">참조이미지 링크</div>
                 <div class="field-label feature-label required">제품 특징</div>
             </div>
             """,
@@ -1725,6 +1799,12 @@ with product_panel:
             TARGET_CUSTOMERS,
             label_visibility="collapsed",
         )
+        reference_image_link = st.text_input(
+            "참조이미지 링크",
+            placeholder="예: https://example.com/reference-image.jpg",
+            help="포스터 분위기나 구성을 참고할 이미지 링크를 입력하세요. 선택 사항입니다.",
+            label_visibility="collapsed",
+        )
 
         # 실제로 확인한 제품 특징을 입력합니다.
         features = st.text_area(
@@ -1745,7 +1825,6 @@ art_panel, result_panel = st.columns([0.35, 0.65], gap="medium")
 with art_panel:
     st.markdown('<div class="panel-marker panel-art"></div>', unsafe_allow_html=True)
 
-    # 포스터 설정 영역을 표시합니다.
     st.markdown(
         '<div class="section-heading lower"><span class="number">03</span>'
         '<span class="label">제품과 포스터 설정</span></div>',
@@ -1820,7 +1899,6 @@ with art_panel:
         label_visibility="collapsed",
     )
 
-    # 처음 포스터를 생성하는 버튼입니다.
     generate_clicked = st.button(
         "AI 제품광고 포스터 생성",
         type="primary",
@@ -1828,9 +1906,61 @@ with art_panel:
         key="generate_button",
     )
 
-# 처음 생성 버튼을 누른 경우에만 필수값을 확인하고 ProductBrief를 만듭니다.
+# 결과 영역을 먼저 만들어 생성 중에도 이 위치를 그대로 사용합니다.
+remake_clicked = False
+new_copy_on_remake = False
+
+with result_panel:
+    st.markdown('<div class="panel-marker panel-result"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-heading lower"><span class="number">04</span>'
+        '<span class="label">생성 결과</span></div>',
+        unsafe_allow_html=True,
+    )
+    result_placeholder = st.empty()
+
+    with result_placeholder.container():
+        if "last_result" in st.session_state:
+            remake_clicked, new_copy_on_remake = show_result(
+                st.session_state["last_result"]
+            )
+        else:
+            st.markdown(
+                """
+                <div class="result-empty">
+                    <div class="poster-placeholder" aria-hidden="true">
+                        <div class="poster-placeholder-visual">✦</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def build_current_brief() -> ProductBrief:
+    """현재 화면 입력값으로 ProductBrief를 만듭니다."""
+
+    return create_brief(
+        product_name=product_name,
+        brand_name=brand_name,
+        price=price,
+        quantity=quantity,
+        features=features,
+        category=category,
+        target_customer=target_customer,
+        reference_image_link=reference_image_link,
+        usage=usage,
+        style=style,
+        color_tone=color_tone,
+        background_type=background_type,
+        text_amount=text_amount,
+        output_type=output_type,
+        extra_request=extra_request,
+    )
+
+
+# 처음 생성 버튼 처리입니다.
 if generate_clicked:
-    # 현재 입력값에 문제가 있는지 확인합니다.
     validation_error = validate_inputs(
         api_key=api_key,
         product_name=product_name,
@@ -1838,185 +1968,83 @@ if generate_clicked:
         uploaded_files=uploaded_files,
     )
 
-    # 문제가 있으면 API를 호출하지 않고 오류를 표시합니다.
     if validation_error:
         st.error(validation_error)
     else:
         try:
-            # 검사를 통과한 현재 입력값을 ProductBrief 객체로 묶습니다.
-            brief = create_brief(
-                product_name=product_name,
-                brand_name=brand_name,
-                price=price,
-                quantity=quantity,
-                features=features,
-                category=category,
-                target_customer=target_customer,
-                usage=usage,
-                style=style,
-                color_tone=color_tone,
-                background_type=background_type,
-                text_amount=text_amount,
-                output_type=output_type,
-                extra_request=extra_request,
-            )
-
-            # 첫 생성이므로 광고 문구도 새로 생성합니다.
             perform_generation(
                 api_key=api_key,
-                brief=brief,
+                brief=build_current_brief(),
                 uploaded_files=uploaded_files,
                 text_model=text_model,
                 image_model=image_model,
                 quality=QUALITY_MAP[quality_label],
                 reuse_copy_when_possible=False,
+                loading_placeholder=result_placeholder,
             )
+            st.rerun()
 
-            # 완료 메시지를 표시합니다.
-            st.success("제품광고 포스터 생성이 완료되었습니다.")
-
-        # API 키가 잘못된 경우를 처리합니다.
         except AuthenticationError:
             st.error("OpenAI API 키가 올바르지 않습니다. 키를 다시 확인해 주세요.")
-
-        # API 사용 한도나 호출 제한 오류를 처리합니다.
         except RateLimitError:
             st.error(
                 "OpenAI API 사용 한도 또는 호출 제한에 도달했습니다. "
                 "API 결제와 사용량을 확인해 주세요."
             )
-
-        # 인터넷 연결 오류를 처리합니다.
         except APIConnectionError:
             st.error("OpenAI 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.")
-
-        # API 응답 시간이 너무 길어진 경우를 처리합니다.
         except APITimeoutError:
             st.error("AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.")
-
-        # 잘못된 요청, 모델 권한 또는 이미지 형식 오류를 처리합니다.
         except BadRequestError as error:
             st.error(
                 "OpenAI API가 요청을 처리하지 못했습니다. "
                 "모델 사용 권한과 입력 이미지 형식을 확인해 주세요."
             )
-
-            # 오류 내용을 복사할 수 있도록 상세 정보를 표시합니다.
             with st.expander("상세 오류 보기"):
                 st.code(str(error))
-
-        # 그 밖의 예기치 못한 오류도 앱이 종료되지 않게 처리합니다.
         except Exception as error:
             st.error("포스터 생성 중 예상하지 못한 오류가 발생했습니다.")
-
-            # 정확한 오류 내용을 접어서 표시합니다.
             with st.expander("상세 오류 보기"):
                 st.code(str(error))
 
-# 결과 영역은 생성 전에도 같은 자리를 유지해 편집 그리드가 흐트러지지 않게 합니다.
-with result_panel:
-    st.markdown('<div class="panel-marker panel-result"></div>', unsafe_allow_html=True)
-
-    st.markdown(
-        '<div class="section-heading lower"><span class="number">04</span>'
-        '<span class="label">생성 결과</span></div>',
-        unsafe_allow_html=True,
+# 다시 만들기 버튼 처리입니다.
+if "last_result" in st.session_state and remake_clicked:
+    validation_error = validate_inputs(
+        api_key=api_key,
+        product_name=product_name,
+        features=features,
+        uploaded_files=uploaded_files,
     )
 
-    if "last_result" in st.session_state:
-        remake_clicked, new_copy_on_remake = show_result(
-            st.session_state["last_result"]
-        )
+    if validation_error:
+        st.error(validation_error)
     else:
-        st.markdown(
-            """
-            <div class="result-empty">
-                <div class="poster-placeholder" aria-hidden="true">
-                    <div class="poster-placeholder-visual">미리보기</div>
-                </div>
-                <p class="result-empty-title">생성된 포스터가 여기에 표시됩니다</p>
-                <p class="result-empty-note">제품 정보와 포스터 설정을 입력한 뒤 생성해 주세요.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        try:
+            perform_generation(
+                api_key=api_key,
+                brief=build_current_brief(),
+                uploaded_files=uploaded_files,
+                text_model=text_model,
+                image_model=image_model,
+                quality=QUALITY_MAP[quality_label],
+                reuse_copy_when_possible=not new_copy_on_remake,
+                loading_placeholder=result_placeholder,
+            )
+            st.rerun()
 
-# 이전에 생성한 결과가 세션에 있으면 다시 만들기 동작을 처리합니다.
-if "last_result" in st.session_state:
-
-    # 사용자가 위의 옵션을 변경한 뒤 다시 만들기를 누른 경우입니다.
-    if remake_clicked:
-        # 현재 입력값을 다시 확인합니다.
-        validation_error = validate_inputs(
-            api_key=api_key,
-            product_name=product_name,
-            features=features,
-            uploaded_files=uploaded_files,
-        )
-
-        # 필수값에 문제가 있으면 재생성하지 않습니다.
-        if validation_error:
-            st.error(validation_error)
-        else:
-            try:
-                # 현재 입력값으로 새 ProductBrief 객체를 만듭니다.
-                brief = create_brief(
-                    product_name=product_name,
-                    brand_name=brand_name,
-                    price=price,
-                    quantity=quantity,
-                    features=features,
-                    category=category,
-                    target_customer=target_customer,
-                    usage=usage,
-                    style=style,
-                    color_tone=color_tone,
-                    background_type=background_type,
-                    text_amount=text_amount,
-                    output_type=output_type,
-                    extra_request=extra_request,
-                )
-
-                # 체크하지 않았다면 제품 정보가 같을 때 기존 문구를 유지합니다.
-                perform_generation(
-                    api_key=api_key,
-                    brief=brief,
-                    uploaded_files=uploaded_files,
-                    text_model=text_model,
-                    image_model=image_model,
-                    quality=QUALITY_MAP[quality_label],
-                    reuse_copy_when_possible=not new_copy_on_remake,
-                )
-
-                # 새 결과를 깨끗하게 표시하기 위해 화면을 다시 실행합니다.
-                st.rerun()
-
-            # API 키 오류를 처리합니다.
-            except AuthenticationError:
-                st.error("OpenAI API 키가 올바르지 않습니다.")
-
-            # API 한도 오류를 처리합니다.
-            except RateLimitError:
-                st.error("OpenAI API 사용 한도 또는 호출 제한에 도달했습니다.")
-
-            # 인터넷 연결 오류를 처리합니다.
-            except APIConnectionError:
-                st.error("OpenAI 서버에 연결하지 못했습니다.")
-
-            # API 시간 초과 오류를 처리합니다.
-            except APITimeoutError:
-                st.error("AI 응답 시간이 초과되었습니다.")
-
-            # 요청 오류의 상세 내용을 표시합니다.
-            except BadRequestError as error:
-                st.error("이미지를 다시 만드는 중 API 요청 오류가 발생했습니다.")
-
-                with st.expander("상세 오류 보기"):
-                    st.code(str(error))
-
-            # 예상하지 못한 나머지 오류를 처리합니다.
-            except Exception as error:
-                st.error("이미지를 다시 만드는 중 오류가 발생했습니다.")
-
-                with st.expander("상세 오류 보기"):
-                    st.code(str(error))
+        except AuthenticationError:
+            st.error("OpenAI API 키가 올바르지 않습니다.")
+        except RateLimitError:
+            st.error("OpenAI API 사용 한도 또는 호출 제한에 도달했습니다.")
+        except APIConnectionError:
+            st.error("OpenAI 서버에 연결하지 못했습니다.")
+        except APITimeoutError:
+            st.error("AI 응답 시간이 초과되었습니다.")
+        except BadRequestError as error:
+            st.error("이미지를 다시 만드는 중 API 요청 오류가 발생했습니다.")
+            with st.expander("상세 오류 보기"):
+                st.code(str(error))
+        except Exception as error:
+            st.error("이미지를 다시 만드는 중 오류가 발생했습니다.")
+            with st.expander("상세 오류 보기"):
+                st.code(str(error))
