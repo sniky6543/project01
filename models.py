@@ -51,6 +51,9 @@ class ProductBrief(BaseModel):
 
     # 사용자가 추가로 입력한 디자인 요청입니다.
     extra_request: str = Field(default="", max_length=1200)
+    
+    # 👇 [여기에 추가!] 참조할 이미지 링크 필드 추가 (필수가 아니므로 default="" 설정)
+    reference_image_link: str = Field(default="", max_length=500)
 
 
 class AdCopy(BaseModel):
