@@ -1880,75 +1880,112 @@ text_model = os.getenv("OPENAI_TEXT_MODEL", "gpt-5.6").strip()
 image_model = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2").strip()
 
 # 왼쪽 사이드바에 API 설정을 표시합니다.
+# 왼쪽 사이드바에 API 설정을 표시합니다.
 with st.sidebar:
     # 설정 영역 제목입니다.
     st.header("API 설정")
 
-    # API 키 검증 상태를 세션에 유지합니다.
+    # API 연결 상태를 세션에 유지합니다.
     if "api_key_status" not in st.session_state:
         st.session_state["api_key_status"] = "unchecked"
 
     if "checked_api_key" not in st.session_state:
         st.session_state["checked_api_key"] = ""
 
-    # 사용자가 직접 API 키를 입력합니다.
-    api_key = st.text_input(
-        "OpenAI API 키",
-        value=default_api_key,
-        type="password",
-        help="키 입력을 마치면 자동으로 연결 상태를 확인합니다.",
-    )
+    if "openai_api_key_input" not in st.session_state:
+        st.session_state["openai_api_key_input"] = default_api_key
 
-    # 입력한 키가 달라지면 이미지 생성 없이 자동으로 API 키를 확인합니다.
-    if api_key != st.session_state["checked_api_key"]:
-        if api_key.strip():
-            with st.spinner("API 키 확인 중..."):
-                api_key_is_valid = validate_api_key_actual(api_key.strip())
+    # API가 정상적으로 연결된 상태입니다.
+    if st.session_state["api_key_status"] == "on":
+        # 입력창이 없어져도 이미지 생성에 사용할 키는 유지합니다.
+        api_key = st.session_state["checked_api_key"]
 
-            st.session_state["checked_api_key"] = api_key
-            st.session_state["api_key_status"] = (
-                "on" if api_key_is_valid else "invalid"
-            )
-        else:
-            st.session_state["checked_api_key"] = ""
+        # API 연결 ON 표시
+        st.markdown(
+            '<div style="display:flex;align-items:center;'
+            'justify-content:space-between;background:#eaf8ef;'
+            'border:1px solid #bce7ca;border-radius:7px;'
+            'padding:10px 12px;">'
+            '<div style="display:flex;align-items:center;gap:8px;'
+            'color:#455168;font-size:13px;font-weight:600;">'
+            '<span style="display:inline-block;width:9px;height:9px;'
+            'background:#159947;border-radius:50%;"></span>'
+            '<span>API 연결 상태</span>'
+            '</div>'
+            '<strong style="color:#159947;font-size:13px;">ON</strong>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+        # API 연결 끊기 버튼
+        if st.button(
+            "API 연결 끊기",
+            use_container_width=True,
+            key="disconnect_api_button",
+        ):
             st.session_state["api_key_status"] = "unchecked"
+            st.session_state["checked_api_key"] = ""
+            st.session_state["openai_api_key_input"] = ""
+            st.rerun()
 
-    # 검증 결과에 따라 ON/OFF 표시 색상을 정합니다.
-    api_status = st.session_state["api_key_status"]
-
-    if api_status == "on":
-        status_text = "ON"
-        status_color = "#159947"
-        status_background = "#eaf8ef"
-        status_border = "#bce7ca"
-    elif api_status == "invalid":
-        status_text = "OFF"
-        status_color = "#c43d45"
-        status_background = "#fff0f1"
-        status_border = "#f0c5c8"
+    # API가 연결되지 않은 상태입니다.
     else:
-        status_text = "OFF"
-        status_color = "#7b8496"
-        status_background = "#f1f3f6"
-        status_border = "#d9dee7"
+        # 사용자가 직접 API 키를 입력합니다.
+        api_key = st.text_input(
+            "OpenAI API 키",
+            type="password",
+            help="키 입력을 마치면 자동으로 연결 상태를 확인합니다.",
+            key="openai_api_key_input",
+        )
 
-    # API 연결 상태 표시 UI
-    st.markdown(
-        f'<div style="display:flex;align-items:center;'
-        f'justify-content:space-between;background:{status_background};'
-        f'border:1px solid {status_border};border-radius:7px;'
-        f'padding:10px 12px;">'
-        f'<div style="display:flex;align-items:center;gap:8px;'
-        f'color:#455168;font-size:13px;font-weight:600;">'
-        f'<span style="display:inline-block;width:9px;height:9px;'
-        f'background:{status_color};border-radius:50%;"></span>'
-        f'<span>API 연결 상태</span>'
-        f'</div>'
-        f'<strong style="color:{status_color};font-size:13px;">'
-        f'{status_text}</strong>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+        # 입력한 키가 달라지면 이미지 생성 없이 자동으로 검증합니다.
+        if api_key != st.session_state["checked_api_key"]:
+            if api_key.strip():
+                with st.spinner("API 키 확인 중..."):
+                    api_key_is_valid = validate_api_key_actual(
+                        api_key.strip()
+                    )
+
+                st.session_state["checked_api_key"] = api_key
+
+                if api_key_is_valid:
+                    st.session_state["api_key_status"] = "on"
+                    st.rerun()
+                else:
+                    st.session_state["api_key_status"] = "invalid"
+
+            else:
+                st.session_state["checked_api_key"] = ""
+                st.session_state["api_key_status"] = "unchecked"
+
+        # 검증 실패 여부에 따라 OFF 색상을 정합니다.
+        if st.session_state["api_key_status"] == "invalid":
+            status_color = "#c43d45"
+            status_background = "#fff0f1"
+            status_border = "#f0c5c8"
+        else:
+            status_color = "#7b8496"
+            status_background = "#f1f3f6"
+            status_border = "#d9dee7"
+
+        # API 연결 OFF 표시
+        st.markdown(
+            f'<div style="display:flex;align-items:center;'
+            f'justify-content:space-between;'
+            f'background:{status_background};'
+            f'border:1px solid {status_border};'
+            f'border-radius:7px;padding:10px 12px;">'
+            f'<div style="display:flex;align-items:center;gap:8px;'
+            f'color:#455168;font-size:13px;font-weight:600;">'
+            f'<span style="display:inline-block;width:9px;height:9px;'
+            f'background:{status_color};border-radius:50%;"></span>'
+            f'<span>API 연결 상태</span>'
+            f'</div>'
+            f'<strong style="color:{status_color};font-size:13px;">'
+            f'OFF</strong>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     # 사용 중인 모델명을 보여줍니다.
     st.caption(f"광고 문구 모델: {text_model}")
