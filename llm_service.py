@@ -9,6 +9,29 @@ from models import AdCopy, ProductBrief
 # 광고 문구용 시스템 규칙과 사용자 프롬프트 함수를 불러옵니다.
 from prompt_service import COPY_SYSTEM_PROMPT, build_copy_user_prompt
 
+from openai import OpenAI, AuthenticationError
+
+# 1. 초급 방식: 문자열 형태만 검사
+def validate_api_key_basic(api_key: str) -> bool:
+    """API 키가 비어있지 않고, 'sk-'로 시작하는지 확인합니다."""
+    if not api_key or not api_key.startswith("sk-"):
+        return False
+    return True
+
+# 2. 중급 방식: 실제 서버 연결 검사
+def validate_api_key_actual(api_key: str) -> bool:
+    """실제 OpenAI 서버에 가장 가벼운 요청을 보내 유효성을 검증합니다."""
+    try:
+        client = OpenAI(api_key=api_key)
+        # 비용이 거의 들지 않는 모델 목록 조회 API를 호출해봅니다.
+        client.models.list() 
+        return True
+    except AuthenticationError:
+        # 키가 틀렸을 때 발생하는 에러입니다.
+        return False
+    except Exception:
+        # 네트워크 문제 등 기타 에러입니다.
+        return False
 
 def generate_ad_copy(
     client: OpenAI,
